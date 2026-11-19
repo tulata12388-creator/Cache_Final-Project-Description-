@@ -6,19 +6,33 @@
 
 void print_statistics(void)
 {
-    uint32_t total = cache_hits + cache_misses;
-    double hit_ratio = 0;
+    uint32_t d_total = d_cache_hits + d_cache_misses;
+    uint32_t i_total = i_cache_hits + i_cache_misses;
+    double d_hit_ratio = 0;
+    double i_hit_ratio = 0;
 
-    if (total > 0){
-        hit_ratio = ((double)cache_hits / total) * 100;
+    if (d_total > 0)
+    {
+        d_hit_ratio = ((double)d_cache_hits / d_total) * 100;
+    }
+    if (i_total > 0)
+    {
+        i_hit_ratio = ((double)i_cache_hits / i_total) * 100;
     }
 
-    printf("***CACHE STATISTICS***\n");
-    printf("Number of cache reads: %u\n", (unsigned)cache_read);
-    printf("Number of cache writes: %u\n", (unsigned)cache_write);
-    printf("Number of cache hits: %u\n", (unsigned)cache_hits);
-    printf("Number of cache misses: %u\n", (unsigned)cache_misses);
-    printf("Cache hit ratio: %.4f%%\n", hit_ratio);
+    printf("*** L1 DATA CACHE STATISTICS ***\n");
+    printf("Number of cache reads: %u\n", (unsigned)d_cache_read);
+    printf("Number of cache writes: %u\n", (unsigned)d_cache_write);
+    printf("Number of cache hits: %u\n", (unsigned)d_cache_hits);
+    printf("Number of cache misses: %u\n", (unsigned)d_cache_misses);
+    printf("Cache hit ratio: %.4f%%\n", d_hit_ratio);
+
+    printf("\n*** L1 INSTRUCTION CACHE STATISTICS ***\n");
+    printf("Number of cache reads: %u\n", (unsigned)i_cache_read);
+    printf("Number of cache writes: %u\n", (unsigned)i_cache_write);
+    printf("Number of cache hits: %u\n", (unsigned)i_cache_hits);
+    printf("Number of cache misses: %u\n", (unsigned)i_cache_misses);
+    printf("Cache hit ratio: %.4f%%\n", i_hit_ratio);
 }
 void print_cache(void)
 {

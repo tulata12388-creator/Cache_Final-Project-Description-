@@ -8,17 +8,13 @@
 // Main 
 int main(int argc, char const *argv[])
 {
-    if (argc <= 1) {
-        mode = 0;
-
-        return read_text_file(TEXT_FILE_NAME);
-
-        // printf("thiếu argument!");
-        // exit(EXIT_FAILURE);
-        // return 1;
+    if (argc <= 2) {
+        printf("missing arguments!");
+        exit(EXIT_FAILURE);
+        return 1;
     } else {
         mode = atoi(argv[1]);
 
-        return read_text_file(TEXT_FILE_NAME);
+        return read_text_file(argv[2]);
     }
 }

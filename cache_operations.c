@@ -18,18 +18,19 @@ void read_data(uint32_t address)
     decode_address(address, &tag, &set);
     hit_miss_flag(tag, set, &is_hit, &filled_way_cnt, &accessed_way, &empty_way, 0);
     
-    cache_read++;
+    d_cache_read++;
     if (is_hit)
     {
         //Hit
 		//cập nhật LRU
+        d_cache_hits++;
         update_D_LRU(set, accessed_way, 0);
-        cache_hits++;
+        
     }
   	else
     {
         // Miss
-        cache_misses++;
+        d_cache_misses++;
       	if (filled_way_cnt == D_CACHE_WAY_CNT)
         {
           // nếu full way 
@@ -45,9 +46,11 @@ void read_data(uint32_t address)
                 printf("Write to L2  0x%08" PRIx32 "\n", d_cache[set][victim_way].dirty_address);
                 printf("Read from L2 0x%08" PRIx32 "\n", address); // read from L2
             }
-            // reset dirty bit sau khi write back
+            // Line mới được nạp từ L2, chưa có lần ghi nào
             d_cache[set][victim_way].dirty = 0;
-            d_cache[set][victim_way].tag = tag; // cập nhật tag mới 
+            d_cache[set][victim_way].written_once = 0;
+            d_cache[set][victim_way].dirty_address = 0;
+            d_cache[set][victim_way].tag = tag; // cập nhật tag mới
             // hàm update_D_LRU
             update_D_LRU(set, victim_way, 0);  
           }
@@ -59,8 +62,10 @@ void read_data(uint32_t address)
             }
             // cập nhật tag mới
             d_cache[set][victim_way].tag = tag;
-            // reset dirty bit (LRU = 0) sau khi write back
+            // Reset trạng thái ghi vì đây là line mới
             d_cache[set][victim_way].dirty = 0;
+            d_cache[set][victim_way].written_once = 0;
+            d_cache[set][victim_way].dirty_address = 0;
             // hàm update_D_LRU
             update_D_LRU(set, victim_way, 0);
           }
@@ -78,10 +83,10 @@ void read_data(uint32_t address)
             d_cache[set][empty_way].tag = tag;
             // đánh dấu valid bit;
             d_cache[set][empty_way].valid = 1;
-            // đánh dấu dirty bit
+            // Line được đọc về chưa bị ghi, nên clean
             d_cache[set][empty_way].dirty = 0;
-          	
-            
+            d_cache[set][empty_way].written_once = 0;
+            d_cache[set][empty_way].dirty_address = 0;
         }
     }
 }
@@ -95,69 +100,74 @@ void write_data(uint32_t address)
     uint32_t set;
     decode_address(address, &tag, &set);
     hit_miss_flag(tag, set, &is_hit, &filled_way_cnt, &accessed_way, &empty_way, 0);
-  
-    cache_write++;
+
+    d_cache_write++;
     if (is_hit)
     {
-        //hit
-        cache_hits++;
-        d_cache[set][accessed_way].dirty = 1; // đánh dấu dirty bit
-      	update_D_LRU(set, accessed_way, 0);
-        // có một biến để lưu địa chỉ bị dirty, khi bị evict thì sẽ write back ra L2
-        d_cache[set][accessed_way].dirty_address = address; 
-    }
-  	else
-    {
-      //Miss
-      cache_misses++;
-      if (filled_way_cnt == D_CACHE_WAY_CNT)
+        // Hit: phải xét line này đã được ghi lần nào chưa
+        d_cache_hits++;
+        if (d_cache[set][accessed_way].written_once == 0)
         {
-          // nếu full way 
-          // hàm update_D_LRU
-          // hàm tìm victim
-           uint8_t victim_way;
-           find_victim(set, &victim_way, 0);
-          // Encode_address cua victim
-         if(d_cache[set][victim_way].dirty)
-         {
-            if (mode == 1) 
+            // First write: write-through xuống L2, line vẫn clean
+            if (mode == 1)
             {
-                printf("Write to L2  0x%08" PRIx32 "\n", d_cache[set][victim_way].dirty_address);
-                printf("Read for Ownership from L2 0x%08" PRIx32 "\n", address);
+                printf("Write to L2 0x%08" PRIx32 "\n", address);
             }
-           d_cache[set][victim_way].tag = tag; // cập nhật tag mới
-           d_cache[set][victim_way].dirty_address = address; 
-              
-		   update_D_LRU(set, victim_way, 0); // reset dirty bit (LRU = 0) sau khi write back 
-         }
-        else
-         {
-            if (mode == 1) 
-            {
-                printf("Read for Ownership from L2 0x%08" PRIx32 "\n", address);
-            }
-           // dirty = 1
-           d_cache[set][victim_way].tag = tag; // cập nhật tag mới
-           d_cache[set][victim_way].dirty = 1;
-           d_cache[set][victim_way].dirty_address = address;
-           update_D_LRU(set, victim_way, 0);
-         }
+            d_cache[set][accessed_way].written_once = 1;
+            d_cache[set][accessed_way].dirty = 0;
+            d_cache[set][accessed_way].dirty_address = 0;
         }
-      	else
+        else
         {
-            if (mode == 1) 
+            // Các lần ghi sau: write-back, chỉ cập nhật trạng thái dirty
+            d_cache[set][accessed_way].dirty = 1;
+            d_cache[set][accessed_way].dirty_address = address;
+        }
+        update_D_LRU(set, accessed_way, 0);
+    }
+    else
+    {
+        // Miss: write-allocate, đưa line vào cache trước khi ghi lần đầu
+        d_cache_misses++;
+        if (filled_way_cnt == D_CACHE_WAY_CNT)
+        {
+            //set đã đầy: tìm victim theo LRU
+            uint8_t victim_way;
+            find_victim(set, &victim_way, 0);
+            
+            // Ghi trả line cũ nếu dirty trước khi thay thế
+            if (mode == 1)
+            {
+                if (d_cache[set][victim_way].dirty)
+                {
+                        printf("Write to L2 0x%08" PRIx32 "\n",
+                                d_cache[set][victim_way].dirty_address);
+                }
+
+                printf("Read for Ownership from L2 0x%08" PRIx32 "\n", address);
+                printf("Write to L2 0x%08" PRIx32 "\n", address); // first write-through
+            }
+            // Line mới không được kế thừa trạng thái của victim cũ
+            d_cache[set][victim_way].tag = tag;
+            d_cache[set][victim_way].dirty = 0;
+            d_cache[set][victim_way].written_once = 1;
+            d_cache[set][victim_way].dirty_address = 0;
+            update_D_LRU(set, victim_way, 0);
+        }
+        else
+        {
+            // Còn empty way: nạp line và thực hiện lần ghi đầu tiên
+            if (mode == 1)
             {
                 printf("Read for Ownership from L2 0x%08" PRIx32 "\n", address);
+                printf("Write to L2 0x%08" PRIx32 "\n", address); // first write-through
             }
-          	// ghi vô cái empty line  
-            //hàm update_D_LRU 
-          	update_D_LRU(set, empty_way, 0);
-            d_cache[set][empty_way].tag = tag; // cập nhật tag mới
-            d_cache[set][empty_way].valid = 1; // đánh dấu valid bit;
-            //d_cache[set][empty_way].dirty = 1; // đánh dấu dirty bit
-            //d_cache[set][empty_way].dirty_address = address; 
-          	
-            
+            update_D_LRU(set, empty_way, 0);
+            d_cache[set][empty_way].tag = tag;
+            d_cache[set][empty_way].valid = 1;
+            d_cache[set][empty_way].dirty = 0;
+            d_cache[set][empty_way].written_once = 1;
+            d_cache[set][empty_way].dirty_address = 0;
         }
     }
 }
@@ -171,18 +181,18 @@ void fetch_instruction(uint32_t address)
     uint32_t set;
     decode_address(address, &tag, &set);
     hit_miss_flag(tag, set, &is_hit, &filled_way_cnt, &accessed_way, &empty_way, 1);
-    cache_read++;
+    i_cache_read++;
     if (is_hit)
     {
         //Hit
-        cache_hits++;
+        i_cache_hits++;
 		//cập nhật LRU
         update_I_LRU(set, accessed_way, 0);
     }
   	else
     {
         // Miss
-        cache_misses++;
+        i_cache_misses++;
       	if (filled_way_cnt == I_CACHE_WAY_CNT)
         {
             // nếu full way 
@@ -241,6 +251,7 @@ void evict_L2(uint32_t address)
             // reset dirty bit và valid bit
             update_D_LRU(set, way, 1); // cập nhật LRU
             d_cache[set][way].dirty = 0;
+            d_cache[set][way].written_once = 0;
             d_cache[set][way].valid = 0;
             d_cache[set][way].tag = 0;
             d_cache[set][way].dirty_address = 0;

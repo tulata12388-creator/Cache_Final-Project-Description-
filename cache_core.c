@@ -73,6 +73,7 @@ void clear_cache(void)
         {
             d_cache[set][way].valid         = 0;
             d_cache[set][way].dirty         = 0;
+            d_cache[set][way].written_once  = 0;
             d_cache[set][way].tag           = 0;
             d_cache[set][way].lru           = 0;
             d_cache[set][way].dirty_address = 0;
@@ -91,8 +92,13 @@ void clear_cache(void)
     }
 
     // Reset statistics
-    cache_read      = 0;
-    cache_write     = 0;
-    cache_hits      = 0;
-    cache_misses    = 0;
+    d_cache_read    = 0;
+    d_cache_write   = 0;
+    d_cache_hits    = 0;
+    d_cache_misses  = 0;
+
+    i_cache_read    = 0;
+    i_cache_write   = 0;
+    i_cache_hits    = 0;
+    i_cache_misses  = 0;
 }

@@ -6,12 +6,14 @@
 #define SET_CNT 16384
 #define D_CACHE_WAY_CNT 4
 #define I_CACHE_WAY_CNT 2
-#define TEXT_FILE_NAME "trace.txt"
 
 typedef struct {
     uint8_t lru;
     uint8_t valid;
     uint8_t dirty;
+    uint8_t written_once; 
+     // 0: first write must be write-through; 
+     // 1: later writes may be dirty
     uint32_t tag;
     uint32_t dirty_address;
 } D_line;
